@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Новостной портал{% endblock %}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+            background-color: #f8f9fa;
+        }
+        .header {
+            background-color: #2c3e50;
+            color: white;
+            padding: 1rem 0;
+            text-align: center;
+        }
+        .nav {
+            background-color: #34495e;
+            padding: 1rem;
+            text-align: center;
+        }
+        .nav a {
+            color: white;
+            text-decoration: none;
+            margin: 0 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 3px;
+            transition: background-color 0.3s;
+            display: inline-block;
+        }
+        .nav a:hover {
+            background-color: #4a6572;
+        }
+        .content {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+            min-height: 60vh;
+        }
+        .footer {
+            background-color: #2c3e50;
+            color: white;
+            text-align: center;
+            padding: 1rem;
+            margin-top: 2rem;
+        }
+        .form-control {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            font-size: 1rem;
+        }
+        .form-control:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 5px rgba(52, 152, 219, 0.3);
+        }
+        select.form-control {
+            height: auto;
+        }
+        .categories-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        .categories-menu {
+            display: none;
+            position: absolute;
+            background-color: white;
+            min-width: 200px;
+            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+            z-index: 1000;
+            border-radius: 3px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .categories-menu a {
+            color: #333;
+            padding: 12px 16px;
+            text-decoration: none;
+            display: block;
+            border-bottom: 1px solid #eee;
+        }
+        .categories-menu a:hover {
+            background-color: #f8f9fa;
+        }
+        .categories-dropdown:hover .categories-menu {
+            display: block;
+        }
+        .badge {
+            background: #3498db;
+            color: white;
+            padding: 0.2rem 0.5rem;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            margin-left: 0.3rem;
+        }
+        .user-info {
+            color: #ecf0f1;
+            margin-right: 1rem;
+            display: inline-block;
+        }
+        .subscription-indicator {
+            color: #27ae60;
+            float: right;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>Новостной портал</h1>
+    </header>
+
+    {% load group_tags %}
+    {% load cache %}
+
+    <nav class="nav">
+        <!-- 🆕 КЭШИРОВАНИЕ СТАТИЧНЫХ ЭЛЕМЕНТОВ НАВИГАЦИИ НА 10 МИНУТ -->
+        {% cache 600 navigation_static %}
+        <a href="/">🏠 Главная</a>
+        <a href="{% url 'news_list' %}">📰 Все новости</a>
+        <a href="{% url 'news_search' %}">🔍 Поиск</a>
+        {% endcache %}
+
+        <!-- 🆕 КЭШИРОВАНИЕ МЕНЮ КАТЕГОРИЙ НА 5 МИНУТ -->
+        {% cache 300 categories_menu %}
+        <div class="categories-dropdown">
+            <a href="#" style="background: #8e44ad;">📂 Категории ▼</a>
+            <div class="categories-menu">
+                {% for category in categories %}
+                    <a href="{% url 'category_posts' category.id %}">
+                        {{ category.name }}
+                        {% if user.is_authenticated %}
+                            {% if category in user.subscribed_categories.all %}
+                                <span class="subscription-indicator">✓</span>
+                            {% endif %}
+                        {% endif %}
+                    </a>
+                {% empty %}
+                    <a href="#" style="color: #999;">Категорий пока нет</a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endcache %}
+
+        {% if user.is_authenticated %}
+            <!-- 🆕 КЭШИРОВАНИЕ ССЫЛКИ НА ПОДПИСКИ НА 2 МИНУТЫ -->
+            {% cache 120 my_subscriptions_link %}
+            <a href="{% url 'my_subscriptions' %}" style="background: #e67e22;">📧 Мои подписки</a>
+            {% endcache %}
+
+            <!-- 🆕 КЭШИРОВАНИЕ ИНФОРМАЦИИ О ГРУППАХ НА 5 МИНУТ -->
+            {% cache 300 user_groups %}
+            <span class="user-info">
+                {% if user.groups.all %}
+                    Группы:
+                    {% for group in user.groups.all %}
+                        <span style="background: #2ecc71; padding: 0.2rem 0.5rem; border-radius: 3px; margin-left: 0.3rem;">
+                            {{ group.name }}
+                        </span>
+                    {% endfor %}
+                {% else %}
+                    <span style="color: #e74c3c;">Нет групп</span>
+                {% endif %}
+            </span>
+            {% endcache %}
+
+            <!-- 🆕 КЭШИРОВАНИЕ БЛОКА АВТОРА НА 2 МИНУТЫ -->
+            {% if user|in_group:'authors' %}
+                {% cache 120 author_block %}
+                <span style="background: #27ae60; color: white; padding: 0.5rem 1rem; border-radius: 3px; margin-right: 0.5rem;">
+                    ✅ Вы автор
+                </span>
+
+                <!-- Проверка конкретных прав -->
+                {% if perms.news.add_post %}
+                    <a href="{% url 'news_create' %}" style="background: #3498db;">
+                        📝 Добавить новость
+                    </a>
+                    <a href="{% url 'article_create' %}" style="background: #9b59b6;">
+                        📄 Добавить статью
+                    </a>
+                {% else %}
+                    <span style="background: #e74c3c; color: white; padding: 0.5rem 1rem; border-radius: 3px; margin-right: 0.5rem;">
+                        ⚠️ Нет прав на создание
+                    </span>
+                {% endif %}
+                {% endcache %}
+            {% else %}
+                <!-- 🆕 КЭШИРОВАНИЕ ССЫЛКИ "СТАТЬ АВТОРОМ" НА 5 МИНУТ -->
+                {% cache 300 become_author_link %}
+                <a href="{% url 'become_author' %}" style="background: #e67e22;">
+                    🖊️ Стать автором
+                </a>
+                {% endcache %}
+            {% endif %}
+
+            <!-- 🆕 КЭШИРОВАНИЕ ИМЕНИ ПОЛЬЗОВАТЕЛЯ НА 2 МИНУТЫ -->
+            {% cache 120 username_display %}
+            <span class="user-info">👤 {{ user.username }}</span>
+            {% endcache %}
+
+            <!-- 🆕 КЭШИРОВАНИЕ КНОПКИ ВЫХОДА НА 10 МИНУТ -->
+            {% cache 600 logout_button %}
+            <a href="{% url 'account_logout' %}" style="background: #e74c3c;">
+                🚪 Выйти
+            </a>
+            {% endcache %}
+
+        {% else %}
+            <!-- 🆕 КЭШИРОВАНИЕ КНОПОК ВХОДА/РЕГИСТРАЦИИ НА 10 МИНУТ -->
+            {% cache 600 auth_buttons %}
+            <a href="{% url 'account_login' %}" style="background: #2ecc71;">
+                🔑 Войти
+            </a>
+            <a href="{% url 'account_signup' %}" style="background: #f39c12;">
+                📋 Регистрация
+            </a>
+            {% endcache %}
+        {% endif %}
+
+        <!-- 🆕 КЭШИРОВАНИЕ ССЫЛКИ НА АДМИНКУ НА 30 МИНУТ -->
+        {% cache 1800 admin_link %}
+        <a href="/admin/" style="background: #34495e;">
+            ⚙️ Админка
+        </a>
+        {% endcache %}
+    </nav>
+
+    <main class="content">
+        <!-- Сообщения НЕ кэшируем, так как они должны показываться сразу -->
+        {% if messages %}
+        <div style="margin-bottom: 1rem;">
+            {% for message in messages %}
+            <div style="padding: 1rem; border-radius: 5px; margin-bottom: 0.5rem;
+                       {% if message.tags == 'success' %}background: #d4edda; color: #155724; border: 1px solid #c3e6cb;
+                       {% elif message.tags == 'error' %}background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb;
+                       {% elif message.tags == 'warning' %}background: #fff3cd; color: #856404; border: 1px solid #ffeaa7;
+                       {% else %}background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb;{% endif %}">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% block content %}
+        {% endblock %}
+    </main>
+
+    <!-- 🆕 КЭШИРОВАНИЕ ФУТЕРА НА 60 МИНУТ -->
+    {% cache 3600 footer %}
+    <footer class="footer">
+        <p>&copy; 2025 Новостной портал. Все права защищены.</p>
+        <p>Система подписок: получайте уведомления о новых статьях в ваших любимых категориях!</p>
+    </footer>
+    {% endcache %}
+
+    <script>
+        // Закрытие выпадающего меню при клике вне его
+        document.addEventListener('click', function(event) {
+            const dropdowns = document.querySelectorAll('.categories-dropdown');
+            dropdowns.forEach(function(dropdown) {
+                if (!dropdown.contains(event.target)) {
+                    const menu = dropdown.querySelector('.categories-menu');
+                    if (menu) menu.style.display = 'none';
+                }
+            });
+        });
+
+        // Переключение отображения меню категорий
+        document.querySelectorAll('.categories-dropdown > a').forEach(function(trigger) {
+            trigger.addEventListener('click', function(e) {
+                e.preventDefault();
+                const menu = this.nextElementSibling;
+                if (menu.style.display === 'block') {
+                    menu.style.display = 'none';
+                } else {
+                    menu.style.display = 'block';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
